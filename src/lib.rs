@@ -6,7 +6,7 @@ use diesel::{
         methods::{ExecuteDsl, LimitDsl, LoadQuery},
         RunQueryDsl,
     },
-    r2d2::{ConnectionManager, Pool},
+    r2d2::{self, ConnectionManager, Pool, R2D2Connection},
     result::QueryResult,
     Connection,
 };
@@ -18,7 +18,7 @@ pub type AsyncResult<R> = Result<R, AsyncError>;
 #[derive(Debug)]
 pub enum AsyncError {
     // Failed to checkout a connection
-    Checkout(r2d2::Error),
+    Checkout(r2d2::PoolError),
 
     // The query failed in some way
     Error(diesel::result::Error),
@@ -67,7 +67,7 @@ where
 #[async_trait]
 impl<Conn> AsyncSimpleConnection<Conn> for Pool<ConnectionManager<Conn>>
 where
-    Conn: 'static + Connection,
+    Conn: 'static + R2D2Connection,
 {
     #[inline]
     async fn batch_execute_async(&self, query: &str) -> AsyncResult<()> {
@@ -99,7 +99,7 @@ where
 #[async_trait]
 impl<Conn> AsyncConnection<Conn> for Pool<ConnectionManager<Conn>>
 where
-    Conn: 'static + Connection,
+    Conn: 'static + R2D2Connection,
 {
     #[inline]
     async fn run<R, Func>(&self, f: Func) -> AsyncResult<R>
@@ -131,7 +131,7 @@ where
 #[async_trait]
 pub trait AsyncRunQueryDsl<Conn, AsyncConn>
 where
-    Conn: 'static + Connection,
+    Conn: 'static + R2D2Connection,
 {
     async fn execute_async(self, asc: &AsyncConn) -> AsyncResult<usize>
     where
@@ -163,7 +163,7 @@ where
 impl<T, Conn> AsyncRunQueryDsl<Conn, Pool<ConnectionManager<Conn>>> for T
 where
     T: Send + RunQueryDsl<Conn>,
-    Conn: 'static + Connection,
+    Conn: 'static + R2D2Connection,
 {
     async fn execute_async(self, asc: &Pool<ConnectionManager<Conn>>) -> AsyncResult<usize>
     where
